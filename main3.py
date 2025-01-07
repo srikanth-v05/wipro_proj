@@ -706,19 +706,17 @@ elif selected_phase == "Anar6":
         .section-title {
             color: #5D6D7E;  /* Gray section headers */
         }
-        .center-options {
-            text-align: center;
-        }
         </style>
     """, unsafe_allow_html=True)
 
     # Title and description
-    st.markdown('<h1 class="main-title">📊 Course Performance Dashboard</h1>', unsafe_allow_html=True)
+    st.markdown('<h1 class="main-title">📊Candidate Performance Analysis & Recommendation Tool Dashboard</h1>', unsafe_allow_html=True)
 
     if st.session_state["processed_data"] is not None:
         # Load CSV into a DataFrame
         df = pd.read_csv('./final.csv')
-       # Filters
+        
+        # Filters
         selected_course = st.selectbox("📚 Select a Course", ["All"] + list(df["course_name"].unique()))
         selected_category = st.selectbox("🏷 Select Performance Category", ["All"] + list(df["Performance_category"].unique()))
         min_marks, max_marks = st.slider(
@@ -742,99 +740,93 @@ elif selected_phase == "Anar6":
         avg_marks = filtered_df["mark"].mean()
 
         # Calculate top performance category based on filtered data
-        if not filtered_df.empty:
-            top_performance = (
-                filtered_df["Performance_category"].value_counts().idxmax()
-            )
-        else:
-            top_performance = "No Data"
+        top_performance = (
+            filtered_df["Performance_category"].value_counts().idxmax()
+            if not filtered_df.empty
+            else "No Data"
+        )
 
         col1, col2, col3 = st.columns(3)
         col1.metric("Total Candidates", total_candidates, "👤")
         col2.metric("Average Marks", f"{avg_marks:.2f}" if total_candidates > 0 else "0.00", "📈")
         col3.metric("Top Performance Category", top_performance, "🏆")
 
-        # Display filtered data
-        st.markdown('<h3 class="section-title">🔍 Filtered Data</h3>', unsafe_allow_html=True)
-        st.dataframe(filtered_df, use_container_width=True)
-
-        # Visualization options in the center
-        st.markdown('<h3 class="section-title">📊 Visualization Options</h3>', unsafe_allow_html=True)
-        visualization_type = st.radio(
-            "Choose a Visualization",
-            [
-                "Performance Category Distribution", "Marks Distribution", "Line Chart by Performance",
-                "Marks vs Attempts", "Top Courses by Average Marks", "Heatmap Correlation"
-            ],
-            horizontal=True
+        # Create visualizations
+        # Marks Distribution
+        bins = st.slider("🔧 Adjust Number of Bins", min_value=5, max_value=50, value=20)
+        marks_dist_fig = px.histogram(
+            filtered_df, x="mark", nbins=bins, title="Marks Distribution",
+            labels={"mark": "Marks"}, marginal="box", color_discrete_sequence=["#F39C12"]
         )
 
-        # Visualizations
-        if visualization_type == "Performance Category Distribution":
-            st.subheader("📈 Performance Category Distribution")
-            category_counts = filtered_df["Performance_category"].value_counts()
-            fig = px.pie(
-                names=category_counts.index,
-                values=category_counts.values,
-                title="Performance Category Distribution",
-                color_discrete_sequence=px.colors.sequential.RdBu
-            )
-            st.plotly_chart(fig, use_container_width=True)
+        # Performance Category Distribution
+        category_counts = filtered_df["Performance_category"].value_counts()
+        performance_pie_fig = px.pie(
+            names=category_counts.index,
+            values=category_counts.values,
+            title="Performance Category Distribution",
+            color_discrete_sequence=px.colors.sequential.RdBu
+        )
 
-        elif visualization_type == "Marks Distribution":
+        # Line Chart by Performance
+        performance_line_data = filtered_df.groupby("Performance_category")["mark"].mean().reset_index()
+        line_chart_fig = px.line(
+            performance_line_data,
+            x="Performance_category",
+            y="mark",
+            title="Line Chart of Average Marks by Performance Category",
+            labels={"Performance_category": "Performance Category", "mark": "Average Marks"},
+            markers=True
+        )
+
+        # Marks vs Attempts
+        scatter_fig = px.scatter(
+            filtered_df, x="attempt", y="mark", color="Performance_category",
+            title="Marks vs Attempts",
+            labels={"attempt": "Attempts", "mark": "Marks"},
+            color_discrete_sequence=px.colors.sequential.Plasma
+        )
+
+        # Top Courses by Average Marks
+        top_courses = filtered_df.groupby("course_name")["mark"].mean().sort_values(ascending=False).head(10)
+        bar_chart_fig = px.bar(
+            x=top_courses.values, y=top_courses.index,
+            orientation="h",
+            labels={"x": "Average Marks", "y": "Course Name"},
+            title="Top 10 Courses by Average Marks",
+            color=top_courses.values,
+            color_continuous_scale=px.colors.sequential.Viridis
+        )
+
+        # Heatmap of Correlation
+        corr = filtered_df.corr(numeric_only=True)
+        heatmap_fig, ax = plt.subplots(figsize=(10, 6))
+        sns.heatmap(corr, annot=True, cmap="coolwarm", fmt=".2f", linewidths=0.5)
+
+        # Arrange visualizations into columns
+        col1, col2 = st.columns(2)
+
+        # Column 1
+        with col1:
             st.subheader("📊 Marks Distribution")
-            bins = st.slider("🔧 Adjust Number of Bins", min_value=5, max_value=50, value=20)
-            fig = px.histogram(
-                filtered_df, x="mark", nbins=bins, title="Marks Distribution",
-                labels={"mark": "Marks"}, marginal="box", color_discrete_sequence=["#F39C12"]
-            )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(marks_dist_fig, use_container_width=True)
 
-        elif visualization_type == "Line Chart by Performance":
             st.subheader("📈 Line Chart by Performance")
-            # Aggregate the data for the line chart
-            performance_line_data = filtered_df.groupby("Performance_category")["mark"].mean().reset_index()
-            
-            # Create the line chart
-            fig = px.line(
-                performance_line_data,
-                x="Performance_category",
-                y="mark",
-                title="Line Chart of Average Marks by Performance Category",
-                labels={"Performance_category": "Performance Category", "mark": "Average Marks"},
-                markers=True,  # Add markers to the line
-            )
-            st.plotly_chart(fig, use_container_width=True)
+            st.plotly_chart(line_chart_fig, use_container_width=True)
 
-
-        elif visualization_type == "Marks vs Attempts":
-            st.subheader("📌 Marks vs Attempts")
-            fig = px.scatter(
-                filtered_df, x="attempt", y="mark", color="Performance_category",
-                title="Marks vs Attempts",
-                labels={"attempt": "Attempts", "mark": "Marks"},
-                color_discrete_sequence=px.colors.sequential.Plasma
-            )
-            st.plotly_chart(fig, use_container_width=True)
-
-        elif visualization_type == "Top Courses by Average Marks":
-            st.subheader("🏅 Top Courses by Average Marks")
-            top_courses = filtered_df.groupby("course_name")["mark"].mean().sort_values(ascending=False).head(10)
-            fig = px.bar(
-                x=top_courses.values, y=top_courses.index,
-                orientation="h",
-                labels={"x": "Average Marks", "y": "Course Name"},
-                title="Top 10 Courses by Average Marks",
-                color=top_courses.values,
-                color_continuous_scale=px.colors.sequential.Viridis
-            )
-            st.plotly_chart(fig, use_container_width=True)
-
-        elif visualization_type == "Heatmap Correlation":
             st.subheader("🔥 Heatmap of Correlation")
-            corr = filtered_df.corr(numeric_only=True)
-            fig, ax = plt.subplots(figsize=(10, 6))
-            sns.heatmap(corr, annot=True, cmap="coolwarm", fmt=".2f", linewidths=0.5)
-            st.pyplot(fig)
+            st.pyplot(heatmap_fig)
+
+        # Column 2
+        with col2:
+            st.subheader("📈 Performance Category Distribution")
+            st.plotly_chart(performance_pie_fig, use_container_width=True)
+
+            st.subheader("📌 Marks vs Attempts")
+            st.plotly_chart(scatter_fig, use_container_width=True)
+
+            st.subheader("🏅 Top Courses by Average Marks")
+            st.plotly_chart(bar_chart_fig, use_container_width=True)
+
     else:
         st.info("📥 Please upload a CSV file to get started.")
